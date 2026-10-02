@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/typeorm": "^11.0.3",
+    "add": "^2.0.9",
+    "global": "^4.4.0",
+    "mysql2": "^3.23.4",
+    "typeorm": "^1.1.0"
+  }
+}
