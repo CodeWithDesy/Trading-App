@@ -1381,7 +1381,7 @@ a:focus-visible,button:focus-visible,input:focus-visible{
     </div>
 
     <div class="ticker-wrap">
-      <p class="ticker-label">Illustrative pricing — for preview purposes only</p>
+      <p class="ticker-label">Real-time pricing</p>
       <div class="ticker">
         <ul class="ticker-track" id="tickerTrack"></ul>
       </div>
@@ -1653,8 +1653,6 @@ a:focus-visible,button:focus-visible,input:focus-visible{
         </div>
         <p class="footer-blurb">A multi-asset trading and wealth platform for people who want banking, trading, and custody in one place.</p>
         <div class="social-row">
-          <a href="#" aria-label="ProlificFX on Twitter / X"><svg class="icon"><use href="#icon-twitter"/></svg></a>
-          <a href="#" aria-label="ProlificFX on LinkedIn"><svg class="icon"><use href="#icon-linkedin"/></svg></a>
           <a href="mailto:hello@prolificfx.com" aria-label="Email ProlificFX"><svg class="icon"><use href="#icon-mail"/></svg></a>
         </div>
       </div>
@@ -4179,7 +4177,6 @@ a:focus-visible,button:focus-visible,input:focus-visible{
     { sym:'BTC/USD', px:64230, dp:0 },
     { sym:'ETH/USD', px:3125, dp:0 },
     { sym:'XAU/USD', px:2412.5, dp:1 },
-    { sym:'US500', px:5488, dp:0 },
     { sym:'USD/CAD', px:1.3602, dp:4 }
   ];
   var tickerTrack = $('#tickerTrack');
@@ -4197,6 +4194,11 @@ a:focus-visible,button:focus-visible,input:focus-visible{
       });
     });
     tickerTrack.innerHTML = html;
+  }
+    // Show a dash until real prices arrive (the old numbers were illustrative)
+  if (tickerTrack) {
+    tickerTrack.querySelectorAll('.px').forEach(function(el){ el.textContent = '—'; });
+    tickerTrack.querySelectorAll('.chg').forEach(function(el){ el.textContent = ''; });
   }
   buildTicker();
   function fluctuateTicker(){
@@ -4219,7 +4221,46 @@ a:focus-visible,button:focus-visible,input:focus-visible{
       chgEl.classList.toggle('down', !up);
     });
   }
-  if (!reduceMotion) setInterval(fluctuateTicker, 2600);
+    var tickerFetching = false;
+
+  function renderTicker(){
+    $all('.ticker-item').forEach(function(el){
+      var item = tickerData[parseInt(el.dataset.i, 10)];
+      var pxEl = el.querySelector('.px');
+      var chgEl = el.querySelector('.chg');
+      if (!item || !item.live || !pxEl || !chgEl) return;
+      pxEl.textContent = fmt(item.px, item.dp);
+      var pct = (item.lastPct || 0) * 100;
+      var up = pct >= 0;
+      chgEl.textContent = (up ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(2) + '%';
+      chgEl.classList.toggle('up', up);
+      chgEl.classList.toggle('down', !up);
+    });
+  }
+
+  function loadLivePrices(){
+    if (document.hidden || tickerFetching) return;
+    tickerFetching = true;
+    fetch(API_BASE_URL + '/market-data/prices')
+      .then(function(res){ return res.ok ? res.json() : null; })
+      .then(function(data){
+        if (!data || !data.prices) return;
+        tickerData.forEach(function(item){
+          var next = data.prices[item.sym];
+          if (typeof next !== 'number' || !isFinite(next)) return;
+          if (item.live && next !== item.px) {
+            item.lastPct = (next - item.px) / item.px;
+          }
+          item.px = next;
+          item.live = true;
+        });
+        renderTicker();
+      })
+      .catch(function(){ /* keep showing the last known prices */ })
+      .then(function(){ tickerFetching = false; });
+  }
+    loadLivePrices();
+  setInterval(loadLivePrices, 10000);
 
   /* =========================================================
      DASHBOARD PREVIEW — STATISTICS LINE CHART
